@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory & Stock - ForecastinQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Inventory & Restocking</h2>
+        <p class="text-muted mb-0">Monitor stock levels, inventory valuation, and intelligent replenishment advice.</p>
+    </div>
+</div>
+
+<!-- Valuation Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small fw-semibold">TOTAL STOCK VALUATION</div>
+                    <h3 class="fw-bold text-dark mb-0 mt-1">{{ currency_symbol }}{{ "%.2f"|format(total_valuation) }}</h3>
+                </div>
+                <div class="stat-icon primary"><i class="bi bi-wallet2"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small fw-semibold">TOTAL UNITS IN HAND</div>
+                    <h3 class="fw-bold text-dark mb-0 mt-1">{{ total_units }}</h3>
+                </div>
+                <div class="stat-icon info"><i class="bi bi-box"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small fw-semibold">LOW / OUT OF STOCK</div>
+                    <h3 class="fw-bold text-danger mb-0 mt-1">{{ low_count + out_count }}</h3>
+                </div>
+                <div class="stat-icon warning"><i class="bi bi-exclamation-octagon"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stock Filter Tabs -->
+<div class="card card-custom">
+    <div class="card-header border-bottom-0 pb-0">
+        <ul class="nav nav-tabs card-header-tabs border-bottom-0">
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'all' %}active fw-bold{% endif %}" href="{{ url_for('inventory.index', status='all') }}">All Stock</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'reorder' %}active fw-bold text-danger{% endif %}" href="{{ url_for('inventory.index', status='reorder') }}">
+                    Restock Recommended <span class="badge bg-danger rounded-pill ms-1">{{ low_count + out_count }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_filter == 'out' %}active fw-bold text-dark{% endif %}" href="{{ url_for('inventory.index', status='out') }}">Out of Stock</a>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-custom mb-0">
+                <thead>
+                    <tr>
+                        <th>Product Details</th>
+                        <th>Category</th>
+                        <th>Stock Level</th>
+                        <th>Min Threshold</th>
+                        <th>Total Valuation</th>
+                        <th>Suggested Reorder Qty</th>
+                        <th>Status</th>
+                        {% if user_session.get('role') in ['admin', 'manager'] %}
+                        <th class="text-end">Adjust Stock</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in inventory_items %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ item.name }}</div>
+                            <div class="small text-muted">{{ item.sku }}</div>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ item.category_name or 'Uncategorized' }}</span></td>
+                        <td class="fw-bold fs-6">{{ item.stock_level }} {{ item.unit }}</td>
+                        <td>{{ item.min_stock_level }}</td>
+                        <td class="fw-semibold text-secondary">{{ currency_symbol }}{{ "%.2f"|format(item.total_value) }}</td>
+                        <td>
+                            {% if item.suggested_reorder > 0 %}
+                            <span class="fw-bold text-primary"><i class="bi bi-arrow-up-circle me-1"></i>+{{ item.suggested_reorder }} {{ item.unit }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.stock_status == 'Out of Stock' %}
+                                <span class="badge badge-out-stock">Out of Stock</span>
+                            {% elif item.stock_status == 'Low Stock' %}
+                                <span class="badge badge-low-stock">Low Stock</span>
+                            {% else %}
+                                <span class="badge badge-adequate">Adequate</span>
+                            {% endif %}
+                        </td>
+                        {% if user_session.get('role') in ['admin', 'manager'] %}
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#adjustModal{{ item.id }}">
+                                <i class="bi bi-sliders me-1"></i> Adjust
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+
+                    <!-- Adjust Stock Modal -->
+                    <div class="modal fade" id="adjustModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ url_for('inventory.adjust_stock') }}" method="POST">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="product_id" value="{{ item.id }}">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title fw-bold">Stock Adjustment: {{ item.name }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="alert alert-info py-2 small">
+                                            Current Stock: <strong>{{ item.stock_level }} {{ item.unit }}</strong> | Min Threshold: <strong>{{ item.min_stock_level }}</strong>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Adjustment Units (+ or -)</label>
+                                            <input type="number" name="adjustment" class="form-control" placeholder="e.g. +15 or -5" required>
+                                            <div class="form-text">Positive numbers add stock, negative numbers reduce stock.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Reason for Adjustment</label>
+                                            <input type="text" name="reason" class="form-control" placeholder="e.g. Restock Shipment #809" required>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Update Stock</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center text-muted p-4">No inventory records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

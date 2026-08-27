@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics & Reports - ForecastinQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-file-earmark-bar-graph me-2"></i> Analytics & Reports</h2>
+        <p class="text-muted mb-0">Generate, filter, and export detailed sales and stock valuation reports.</p>
+    </div>
+    {% if user_session.get('role') in ['admin', 'manager'] %}
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('reports.export_sales_csv', start_date=start_date, end_date=end_date) }}" class="btn btn-outline-success btn-sm shadow-sm">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Sales CSV
+        </a>
+        <a href="{{ url_for('reports.export_inventory_csv') }}" class="btn btn-outline-primary btn-sm shadow-sm">
+            <i class="bi bi-download me-1"></i> Export Inventory CSV
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Date Filter Form -->
+<div class="card card-custom mb-4">
+    <div class="card-body p-3">
+        <form method="GET" action="{{ url_for('reports.index') }}" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold text-muted">START DATE</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold text-muted">END DATE</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i> Apply Date Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="text-muted small fw-semibold">FILTERED REVENUE</div>
+            <h3 class="fw-bold text-success mb-0 mt-1">{{ currency_symbol }}{{ "%.2f"|format(total_rev) }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="text-muted small fw-semibold">TRANSACTIONS COUNT</div>
+            <h3 class="fw-bold text-primary mb-0 mt-1">{{ total_count }} Orders</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="text-muted small fw-semibold">AVERAGE ORDER VALUE</div>
+            <h3 class="fw-bold text-dark mb-0 mt-1">{{ currency_symbol }}{{ "%.2f"|format(avg_order) }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Report Tabs -->
+<div class="card card-custom">
+    <div class="card-header border-bottom-0 pb-0">
+        <ul class="nav nav-tabs card-header-tabs border-bottom-0" id="reportTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active fw-bold" id="sales-tab" data-bs-toggle="tab" data-bs-target="#sales-report-pane" type="button">Sales Report</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock-report-pane" type="button">Stock Valuation Report</button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <div class="tab-content" id="reportTabContent">
+            <!-- Sales Pane -->
+            <div class="tab-pane fade show active" id="sales-report-pane">
+                <div class="table-responsive">
+                    <table class="table table-custom mb-0">
+                        <thead>
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date & Time</th>
+                                <th>Customer</th>
+                                <th>Logged By Staff</th>
+                                <th>Payment Method</th>
+                                <th class="text-end">Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sale in sales_report %}
+                            <tr>
+                                <td class="fw-bold text-primary">{{ sale.invoice_no }}</td>
+                                <td class="small text-muted">{{ sale.sale_date }}</td>
+                                <td>{{ sale.customer_name or 'Walk-in Customer' }}</td>
+                                <td>{{ sale.staff_name or 'System' }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ sale.payment_method }}</span></td>
+                                <td class="text-end fw-bold text-success">{{ currency_symbol }}{{ "%.2f"|format(sale.total_amount) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center text-muted p-4">No sales records found for this date range.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Stock Valuation Pane -->
+            <div class="tab-pane fade" id="stock-report-pane">
+                <div class="table-responsive">
+                    <table class="table table-custom mb-0">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>SKU</th>
+                                <th>Category</th>
+                                <th>Stock Level</th>
+                                <th>Cost Price</th>
+                                <th>Retail Price</th>
+                                <th class="text-end">Total Valuation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prod in stock_report %}
+                            <tr>
+                                <td class="fw-semibold">{{ prod.name }}</td>
+                                <td class="small text-muted">{{ prod.sku }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ prod.category_name or 'Uncategorized' }}</span></td>
+                                <td class="fw-bold">{{ prod.stock_level }}</td>
+                                <td>{{ currency_symbol }}{{ "%.2f"|format(prod.cost_price) }}</td>
+                                <td>{{ currency_symbol }}{{ "%.2f"|format(prod.price) }}</td>
+                                <td class="text-end fw-bold text-primary">{{ currency_symbol }}{{ "%.2f"|format(prod.stock_valuation) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7" class="text-center text-muted p-4">No stock records available.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}POS & Sales Log - ForecastinQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Point of Sale (POS) & Sales Log</h2>
+        <p class="text-muted mb-0">Record point-of-sale transactions and view past invoice activity.</p>
+    </div>
+    <button class="btn btn-primary shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#newSaleModal">
+        <i class="bi bi-cart-plus me-1"></i> Log New Transaction (POS)
+    </button>
+</div>
+
+<!-- Sales Table -->
+<div class="card card-custom">
+    <div class="card-header">
+        <span class="fw-bold"><i class="bi bi-receipt me-2"></i> Recent Sales Transactions</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-custom mb-0">
+                <thead>
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Customer</th>
+                        <th>Logged By Staff</th>
+                        <th>Payment Method</th>
+                        <th>Total Amount</th>
+                        <th>Date & Time</th>
+                        <th class="text-end">Invoice Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sale in sales %}
+                    <tr>
+                        <td class="fw-bold text-primary">{{ sale.invoice_no }}</td>
+                        <td>{{ sale.customer_name or 'Walk-in Customer' }}</td>
+                        <td>{{ sale.staff_name or 'System' }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ sale.payment_method }}</span></td>
+                        <td class="fw-bold text-success">{{ currency_symbol }}{{ "%.2f"|format(sale.total_amount) }}</td>
+                        <td class="small text-muted">{{ sale.sale_date }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('sales.invoice', id=sale.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye me-1"></i> View Receipt
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted p-4">No sales recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- POS New Sale Modal -->
+<div class="modal fade" id="newSaleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ url_for('sales.create_sale') }}" method="POST" id="posForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="items_json" id="items_json_input">
+                
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-cart-check me-2"></i> POS - Record New Sale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Customer</label>
+                        <select name="customer_id" class="form-select">
+                            <option value="">Walk-in Customer</option>
+                            {% for cust in customers %}
+                            <option value="{{ cust.id }}">{{ cust.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="payment_method" class="form-select">
+                            <option value="Cash">Cash</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="UPI">UPI</option>
+                        </select>
+                    </div>
+
+                    <!-- Item Selector -->
+                    <div class="col-12 border-top pt-3">
+                        <h6 class="fw-bold mb-3">Add Products to Cart</h6>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <select id="productSelect" class="form-select">
+                                    <option value="">Choose a product...</option>
+                                    {% for p in products %}
+                                    <option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock_level }}" data-name="{{ p.name }}">
+                                        {{ p.name }} - {{ currency_symbol }}{{ "%.2f"|format(p.price) }} (Stock: {{ p.stock_level }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" id="productQty" class="form-control" value="1" min="1" placeholder="Qty">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-success w-100" id="addItemBtn">
+                                    <i class="bi bi-plus-circle me-1"></i> Add Item
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cart Table -->
+                    <div class="col-12">
+                        <table class="table table-bordered table-sm mt-2" id="cartTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Unit Price</th>
+                                    <th>Qty</th>
+                                    <th>Subtotal</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr id="emptyCartRow"><td colspan="5" class="text-center text-muted py-3">No items added to cart yet.</td></tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold">Grand Total:</td>
+                                    <td class="fw-bold text-success" id="cartGrandTotal">{{ currency_symbol }}0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">Complete Sale & Print</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cart = [];
+
+document.getElementById('addItemBtn').addEventListener('click', () => {
+    const select = document.getElementById('productSelect');
+    const qtyInput = document.getElementById('productQty');
+    
+    const productId = select.value;
+    if (!productId) return;
+    
+    const option = select.options[select.selectedIndex];
+    const name = option.getAttribute('data-name');
+    const price = parseFloat(option.getAttribute('data-price'));
+    const stock = intVal(option.getAttribute('data-stock'));
+    const qty = parseInt(qtyInput.value) || 1;
+    
+    if (qty > stock) {
+        alert(`Cannot add ${qty} units. Only ${stock} units in stock!`);
+        return;
+    }
+    
+    // Check if item exists in cart
+    const existingIndex = cart.findIndex(c => c.product_id === productId);
+    if (existingIndex > -1) {
+        if (cart[existingIndex].quantity + qty > stock) {
+            alert(`Total quantity exceeds available stock (${stock}).`);
+            return;
+        }
+        cart[existingIndex].quantity += qty;
+        cart[existingIndex].subtotal = cart[existingIndex].quantity * price;
+    } else {
+        cart.push({
+            product_id: productId,
+            name: name,
+            price: price,
+            quantity: qty,
+            subtotal: price * qty
+        });
+    }
+    
+    renderCart();
+});
+
+function intVal(v) { return parseInt(v) || 0; }
+
+function renderCart() {
+    const tbody = document.querySelector('#cartTable tbody');
+    tbody.innerHTML = '';
+    
+    if (cart.length === 0) {
+        tbody.innerHTML = '<tr id="emptyCartRow"><td colspan="5" class="text-center text-muted py-3">No items added to cart yet.</td></tr>';
+        document.getElementById('cartGrandTotal').innerText = '{{ currency_symbol }}0.00';
+        document.getElementById('items_json_input').value = '[]';
+        return;
+    }
+    
+    let grandTotal = 0;
+    cart.forEach((item, index) => {
+        grandTotal += item.subtotal;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-semibold">${item.name}</td>
+            <td>{{ currency_symbol }}${item.price.toFixed(2)}</td>
+            <td>${item.quantity}</td>
+            <td class="fw-bold text-success">{{ currency_symbol }}${item.subtotal.toFixed(2)}</td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="removeItem(${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    document.getElementById('cartGrandTotal').innerText = `{{ currency_symbol }}${grandTotal.toFixed(2)}`;
+    document.getElementById('items_json_input').value = JSON.stringify(cart);
+}
+
+function removeItem(index) {
+    cart.splice(index, 1);
+    renderCart();
+}
+
+document.getElementById('posForm').addEventListener('submit', (e) => {
+    if (cart.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one product to the cart before submitting.');
+    }
+});
+</script>
+{% endblock %}
