@@ -1,0 +1,6 @@
+{
+  "name": "ForecastinQ",
+  "description": "Intelligent Sales Forecasting & Inventory Management with Brand filtering, role authentication, and real-time catalog tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
