@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - ForecastinQ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-gear text-primary me-2"></i> System Settings</h2>
+        <p class="text-muted mb-0">Configure store branding, currency format, and default forecasting preferences.</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card card-custom">
+            <div class="card-header">
+                <span class="fw-bold"><i class="bi bi-sliders me-2"></i> Application Preferences</span>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('settings.save') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Company / Store Name</label>
+                        <input type="text" name="company_name" class="form-control" value="{{ settings.get('company_name', 'ForecastinQ Corp') }}" required>
+                        <div class="form-text">Displayed on invoices, navbar, and generated reports.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Currency Symbol</label>
+                        <input type="text" name="currency_symbol" class="form-control" value="{{ settings.get('currency_symbol', '$') }}" required style="width: 120px;">
+                        <div class="form-text">Symbol used across sales transactions and price tags (e.g. $, €, £, ₹).</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Low Stock Safety Multiplier</label>
+                        <input type="number" step="0.1" name="low_stock_threshold_ratio" class="form-control" value="{{ settings.get('low_stock_threshold_ratio', '1.0') }}" required style="width: 140px;">
+                        <div class="form-text">Multiplier ratio applied when evaluating low stock recommendations.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Default Demand Forecasting Model</label>
+                        <select name="default_forecasting_model" class="form-select">
+                            <option value="linear_regression" {% if settings.get('default_forecasting_model') == 'linear_regression' %}selected{% endif %}>Linear Regression (y = mx + b)</option>
+                            <option value="sma" {% if settings.get('default_forecasting_model') == 'sma' %}selected{% endif %}>Simple Moving Average (7-Day SMA)</option>
+                            <option value="ema" {% if settings.get('default_forecasting_model') == 'ema' %}selected{% endif %}>Exponential Smoothing (EMA α=0.3)</option>
+                        </select>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4 fw-bold">
+                            <i class="bi bi-save me-1"></i> Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
